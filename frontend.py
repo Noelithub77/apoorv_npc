@@ -19,9 +19,11 @@ def init_session_state():
         st.session_state.chain = None
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
+    if "streaming_response" not in st.session_state:
+        st.session_state.streaming_response = ""
     if "llm" not in st.session_state:
         try:
-            st.session_state.llm = init_llm()
+            st.session_state.llm = init_llm(streaming=True)
         except ValueError as e:
             st.error(str(e))
             st.stop()
@@ -32,7 +34,7 @@ def main():
 
     st.sidebar.header("Model Selection")
     profile_names = [p["name"] for p in st.session_state.profiles]
-    selected_profile = st.sidebar.selectbox("Select Model", profile_names)
+    selected_profile = st.sidebar.selectbox("Select Character", profile_names)
 
     if selected_profile:
         profile = next(p for p in st.session_state.profiles if p["name"] == selected_profile)
@@ -64,7 +66,7 @@ def main():
         st.session_state.profiles = load_profiles(PROFILES_FILE)
         st.success(f"Profile '{profile_name}' saved successfully!")
 
-    st.header("Test Model")
+    st.header("Test Character")
     if st.button("Run Sample Q&A"):
         with st.spinner("Testing..."):
             results = execute_sample_qna(
@@ -80,18 +82,47 @@ def main():
             st.divider()
 
     st.subheader("Interactive Chat")
-    user_input = st.text_input("Your message")
-    if user_input and st.session_state.current_profile:
-        response = st.session_state.chain["invoke"]({
-            "input": user_input,
-            "sample_qna": st.session_state.current_profile["sample_qna"]
-        })
-        st.session_state.chat_history.append(("You", user_input))
-        st.session_state.chat_history.append(("Assistant", response))
-
+    
+    # Display chat history
     for role, message in st.session_state.chat_history:
         with st.chat_message(role):
             st.write(message)
+    
+    # Create a placeholder for streaming responses
+    if "response_placeholder" not in st.session_state:
+        st.session_state.response_placeholder = st.empty()
+    
+    # Handle user input
+    user_input = st.chat_input("Your message")
+    if user_input and st.session_state.current_profile:
+        # Add user message to chat history
+        st.session_state.chat_history.append(("You", user_input))
+        
+        # Display user message
+        with st.chat_message("You"):
+            st.write(user_input)
+        
+        # Create a placeholder for the assistant's response
+        with st.chat_message("Assistant"):
+            message_placeholder = st.empty()
+            st.session_state.streaming_response = ""
+            
+            # Define callback function for streaming
+            def on_token(token):
+                st.session_state.streaming_response += token
+                message_placeholder.write(st.session_state.streaming_response)
+            
+            # Invoke the chain with streaming
+            full_response = st.session_state.chain["invoke"](
+                {
+                    "input": user_input,
+                    "sample_qna": st.session_state.current_profile["sample_qna"]
+                },
+                streaming_callback=on_token
+            )
+            
+            # Add the complete response to chat history
+            st.session_state.chat_history.append(("Assistant", full_response))
 
 if __name__ == "__main__":
     main() 

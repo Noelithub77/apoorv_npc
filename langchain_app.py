@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Dict, List
+from typing import Dict, List, Callable
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -9,7 +9,7 @@ from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 load_dotenv()
 
-def init_llm():
+def init_llm(streaming=False):
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         raise ValueError("GOOGLE_API_KEY not found in environment variables")
@@ -18,6 +18,7 @@ def init_llm():
         google_api_key=api_key,
         model="gemini-2.0-flash",
         temperature=0,
+        streaming=streaming,
         safety_settings={
             HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
             HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
@@ -40,7 +41,7 @@ def create_conversation_chain(llm, system_prompt: str):
         memory_key="history"
     )
     
-    def chain_invoke(input_dict):
+    def chain_invoke(input_dict, streaming_callback=None):
         examples = []
         if "sample_qna" in input_dict:
             for qa in input_dict["sample_qna"]:
@@ -51,8 +52,19 @@ def create_conversation_chain(llm, system_prompt: str):
         
         history = memory.load_memory_variables({})["history"]
         messages = prompt.format_messages(examples=examples, history=history, input=input_dict["input"])
-        response = llm.invoke(messages)
-        result = response.content
+        
+        if streaming_callback:
+            response_tokens = []
+            for chunk in llm.stream(messages):
+                token = chunk.content
+                response_tokens.append(token)
+                if streaming_callback:
+                    streaming_callback(token)
+            result = "".join(response_tokens)
+        else:
+            response = llm.invoke(messages)
+            result = response.content
+            
         memory.save_context({"input": input_dict["input"]}, {"output": result})
         return result
         
