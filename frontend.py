@@ -112,7 +112,6 @@ def main():
             
             st.header("Edit Character")
             
-            # Ensure current_profile has all required fields with defaults
             if "name" not in st.session_state.current_profile:
                 st.session_state.current_profile["name"] = ""
             if "system_prompt" not in st.session_state.current_profile:
@@ -133,7 +132,7 @@ def main():
             st.subheader("Sample Q&A Pairs")
             
             current_qna = st.session_state.current_profile["sample_qna"]
-            if not current_qna:  # Ensure there's at least an empty pair
+            if not current_qna:  
                 current_qna = [{"question": "", "answer": ""}]
                 
             num_pairs = st.number_input("Number of Q&A Pairs", min_value=0, value=len(current_qna))
@@ -151,18 +150,15 @@ def main():
                         f"Expected Answer {i+1}", 
                         value=current_qna[i]["answer"] if i < len(current_qna) else ""
                     )
-                # Add the pair even if fields are empty
                 sample_qna.append({"question": question, "answer": answer})
 
             if st.button("Save Profile"):
-                # Use default values if fields are empty
                 profile_name = profile_name or f"Character {len(st.session_state.profiles) + 1}"
                 system_prompt = system_prompt or ""
                 
                 save_profile(profile_name, system_prompt, sample_qna, PROFILES_FILE)
                 st.session_state.profiles = load_profiles(PROFILES_FILE)
                 
-                # Update current profile and chain
                 st.session_state.current_profile = next(
                     (p for p in st.session_state.profiles if p["name"] == profile_name), 
                     None
