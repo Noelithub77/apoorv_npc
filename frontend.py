@@ -5,7 +5,6 @@ from langchain_app import (
     create_conversation_chain,
     save_profile,
     load_profiles,
-    execute_sample_qna
 )
 
 PROFILES_FILE = "profiles.json"
