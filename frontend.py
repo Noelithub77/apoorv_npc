@@ -72,7 +72,7 @@ def main():
 
     if st.session_state.current_profile:
         if not st.session_state.edit_mode:
-            st.sidebar.button("Edit Character", on_click=toggle_edit_mode)
+            st.sidebar.button("Edit", on_click=toggle_edit_mode)
             
             st.header("Test Character")
             
@@ -111,6 +111,15 @@ def main():
             st.sidebar.button("Back to Chat", on_click=toggle_edit_mode)
             
             st.header("Edit Character")
+            
+            # Ensure current_profile has all required fields with defaults
+            if "name" not in st.session_state.current_profile:
+                st.session_state.current_profile["name"] = ""
+            if "system_prompt" not in st.session_state.current_profile:
+                st.session_state.current_profile["system_prompt"] = ""
+            if "sample_qna" not in st.session_state.current_profile:
+                st.session_state.current_profile["sample_qna"] = [{"question": "", "answer": ""}]
+                
             profile_name = st.text_input(
                 "Profile Name", 
                 value=st.session_state.current_profile["name"]
@@ -124,7 +133,10 @@ def main():
             st.subheader("Sample Q&A Pairs")
             
             current_qna = st.session_state.current_profile["sample_qna"]
-            num_pairs = st.number_input("Number of Q&A Pairs", min_value=1, value=len(current_qna))
+            if not current_qna:  # Ensure there's at least an empty pair
+                current_qna = [{"question": "", "answer": ""}]
+                
+            num_pairs = st.number_input("Number of Q&A Pairs", min_value=0, value=len(current_qna))
             
             sample_qna = []
             for i in range(num_pairs):
@@ -139,10 +151,14 @@ def main():
                         f"Expected Answer {i+1}", 
                         value=current_qna[i]["answer"] if i < len(current_qna) else ""
                     )
-                if question and answer:
-                    sample_qna.append({"question": question, "answer": answer})
+                # Add the pair even if fields are empty
+                sample_qna.append({"question": question, "answer": answer})
 
-            if st.button("Save Profile") and profile_name and system_prompt and sample_qna:
+            if st.button("Save Profile"):
+                # Use default values if fields are empty
+                profile_name = profile_name or f"Character {len(st.session_state.profiles) + 1}"
+                system_prompt = system_prompt or ""
+                
                 save_profile(profile_name, system_prompt, sample_qna, PROFILES_FILE)
                 st.session_state.profiles = load_profiles(PROFILES_FILE)
                 
@@ -161,7 +177,7 @@ def main():
                 st.session_state.new_profile = False
                 st.session_state.edit_mode = False
                 st.success(f"Profile '{profile_name}' saved successfully!")
-                st.experimental_rerun()
+                st.rerun()
 
 if __name__ == "__main__":
     main() 

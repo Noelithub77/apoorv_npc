@@ -38,5 +38,15 @@
         "answer": "how are you"
       }
     ]
+  },
+  {
+    "name": "hello",
+    "system_prompt": "hello",
+    "sample_qna": [
+      {
+        "question": "",
+        "answer": ""
+      }
+    ]
   }
 ]
