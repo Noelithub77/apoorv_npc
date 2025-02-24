@@ -8,7 +8,13 @@
 pip install -r requirements.txt
 ```
 
-2. Run the application:
+2. Create a `.env` file and add your Google API key:
+
+```
+GOOGLE_API_KEY=your_api_key_here
+```
+
+3. Run the application:
 
 ```bash
 streamlit run frontend.py
