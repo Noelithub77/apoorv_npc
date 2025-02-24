@@ -44,10 +44,20 @@ def create_new_profile():
         "sample_qna": [{"question": "", "answer": ""}]
     }
 
+def get_profiles_data():
+    with open(PROFILES_FILE, "r") as f:
+        return f.read()
+
 def main():
     st.title("Enigma x GDU Apoorv Game")
     init_session_state()
 
+    st.sidebar.download_button(
+        label="Download json",
+        data=get_profiles_data(),
+        file_name=PROFILES_FILE,
+        mime="application/json"
+    )
     st.sidebar.header("Character Selection")
     profile_names = [p["name"] for p in st.session_state.profiles]
     
@@ -61,6 +71,7 @@ def main():
     with col2:
         if st.button("➕", help="Add new profile"):
             create_new_profile()
+    
     
     if selected_profile and not st.session_state.new_profile:
         profile = next(p for p in st.session_state.profiles if p["name"] == selected_profile)
