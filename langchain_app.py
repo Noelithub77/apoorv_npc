@@ -11,9 +11,6 @@ load_dotenv()
 
 def init_llm(streaming=False):
     api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        raise ValueError("GOOGLE_API_KEY not found in environment variables")
-    
     return ChatGoogleGenerativeAI(
         google_api_key=api_key,
         model="gemini-2.0-flash",
@@ -30,8 +27,7 @@ def init_llm(streaming=False):
 def create_conversation_chain(llm, system_prompt: str):
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
-        ("system", "Here are some example interactions to guide your responses. Please maintain a similar tone and style in your answers:"),
-        MessagesPlaceholder(variable_name="examples"),
+        ("system", "{formatted_examples}"),
         MessagesPlaceholder(variable_name="history"),
         ("human", "{input}")
     ])
@@ -42,16 +38,15 @@ def create_conversation_chain(llm, system_prompt: str):
     )
     
     def chain_invoke(input_dict, streaming_callback=None):
-        examples = []
+        formatted_examples = ""
         if "sample_qna" in input_dict:
-            for qa in input_dict["sample_qna"]:
-                examples.extend([
-                    ("human", qa["question"]),
-                    ("assistant", qa["answer"])
-                ])
+            formatted_examples = "You must follow these example interactions precisely. These examples define exactly how you should respond:\n\n"
+            for i, qa in enumerate(input_dict["sample_qna"]):
+                formatted_examples += f"Example {i+1}:\nUser: {qa['question']}\nYou: {qa['answer']}\n\n"
+            formatted_examples += "Always maintain the same tone, style, and approach as shown in these examples."
         
         history = memory.load_memory_variables({})["history"]
-        messages = prompt.format_messages(examples=examples, history=history, input=input_dict["input"])
+        messages = prompt.format_messages(formatted_examples=formatted_examples, history=history, input=input_dict["input"])
         
         if streaming_callback:
             response_tokens = []

@@ -21,6 +21,10 @@ def init_session_state():
         st.session_state.chat_history = []
     if "streaming_response" not in st.session_state:
         st.session_state.streaming_response = ""
+    if "edit_mode" not in st.session_state:
+        st.session_state.edit_mode = False
+    if "new_profile" not in st.session_state:
+        st.session_state.new_profile = False
     if "llm" not in st.session_state:
         try:
             st.session_state.llm = init_llm(streaming=True)
@@ -28,15 +32,37 @@ def init_session_state():
             st.error(str(e))
             st.stop()
 
+def toggle_edit_mode():
+    st.session_state.edit_mode = not st.session_state.edit_mode
+    
+def create_new_profile():
+    st.session_state.new_profile = True
+    st.session_state.edit_mode = True
+    st.session_state.current_profile = {
+        "name": "",
+        "system_prompt": "",
+        "sample_qna": [{"question": "", "answer": ""}]
+    }
+
 def main():
     st.title("Enigma x GDU Apoorv Game")
     init_session_state()
 
-    st.sidebar.header("Model Selection")
+    st.sidebar.header("Character Selection")
     profile_names = [p["name"] for p in st.session_state.profiles]
-    selected_profile = st.sidebar.selectbox("Select Character", profile_names)
-
-    if selected_profile:
+    
+    col1, col2 = st.sidebar.columns([3, 1])
+    with col1:
+        selected_profile = st.selectbox(
+            "Select Character", 
+            profile_names,
+            key="profile_selector"
+        )
+    with col2:
+        if st.button("➕", help="Add new profile"):
+            create_new_profile()
+    
+    if selected_profile and not st.session_state.new_profile:
         profile = next(p for p in st.session_state.profiles if p["name"] == selected_profile)
         st.session_state.current_profile = profile
         st.session_state.chain = create_conversation_chain(
@@ -44,85 +70,98 @@ def main():
             profile["system_prompt"]
         )
 
-    st.header("Alter Characters:-")
-    profile_name = st.text_input("Profile Name", value=st.session_state.current_profile["name"] if st.session_state.current_profile else "")
-    system_prompt = st.text_area("System Instructions", value=st.session_state.current_profile["system_prompt"] if st.session_state.current_profile else "")
-
-    st.subheader("Sample Q&A Pairs")
-    num_pairs = st.number_input("Number of Q&A Pairs", min_value=1, value=len(st.session_state.current_profile["sample_qna"]) if st.session_state.current_profile else 1)
-    sample_qna = []
-
-    for i in range(num_pairs):
-        col1, col2 = st.columns(2)
-        with col1:
-            question = st.text_input(f"Question {i+1}", value=st.session_state.current_profile["sample_qna"][i]["question"] if st.session_state.current_profile and i < len(st.session_state.current_profile["sample_qna"]) else "")
-        with col2:
-            answer = st.text_input(f"Expected Answer {i+1}", value=st.session_state.current_profile["sample_qna"][i]["answer"] if st.session_state.current_profile and i < len(st.session_state.current_profile["sample_qna"]) else "")
-        if question and answer:
-            sample_qna.append({"question": question, "answer": answer})
-
-    if st.button("Save Profile") and profile_name and system_prompt and sample_qna:
-        save_profile(profile_name, system_prompt, sample_qna, PROFILES_FILE)
-        st.session_state.profiles = load_profiles(PROFILES_FILE)
-        st.success(f"Profile '{profile_name}' saved successfully!")
-
-    st.header("Test Character")
-    if st.button("Run Sample Q&A"):
-        with st.spinner("Testing..."):
-            results = execute_sample_qna(
-                st.session_state.chain,
-                sample_qna
-            )
-
-        for i, result in enumerate(results, 1):
-            st.subheader(f"Test Case {i}")
-            st.write("Question:", result["question"])
-            st.write("Expected:", result["expected"])
-            st.write("Generated:", result["generated"])
-            st.divider()
-
-    st.subheader("Interactive Chat")
-    
-    # Display chat history
-    for role, message in st.session_state.chat_history:
-        with st.chat_message(role):
-            st.write(message)
-    
-    # Create a placeholder for streaming responses
-    if "response_placeholder" not in st.session_state:
-        st.session_state.response_placeholder = st.empty()
-    
-    # Handle user input
-    user_input = st.chat_input("Your message")
-    if user_input and st.session_state.current_profile:
-        # Add user message to chat history
-        st.session_state.chat_history.append(("You", user_input))
-        
-        # Display user message
-        with st.chat_message("You"):
-            st.write(user_input)
-        
-        # Create a placeholder for the assistant's response
-        with st.chat_message("Assistant"):
-            message_placeholder = st.empty()
-            st.session_state.streaming_response = ""
+    if st.session_state.current_profile:
+        if not st.session_state.edit_mode:
+            st.sidebar.button("Edit Character", on_click=toggle_edit_mode)
             
-            # Define callback function for streaming
-            def on_token(token):
-                st.session_state.streaming_response += token
-                message_placeholder.write(st.session_state.streaming_response)
+            st.header("Test Character")
             
-            # Invoke the chain with streaming
-            full_response = st.session_state.chain["invoke"](
-                {
-                    "input": user_input,
-                    "sample_qna": st.session_state.current_profile["sample_qna"]
-                },
-                streaming_callback=on_token
+            for role, message in st.session_state.chat_history:
+                with st.chat_message(role):
+                    st.write(message)
+            
+            if "response_placeholder" not in st.session_state:
+                st.session_state.response_placeholder = st.empty()
+            
+            user_input = st.chat_input("Your message")
+            if user_input:
+                st.session_state.chat_history.append(("Human", user_input))
+                
+                with st.chat_message("Human"):
+                    st.write(user_input)
+                
+                with st.chat_message("Assistant"):
+                    message_placeholder = st.empty()
+                    st.session_state.streaming_response = ""
+                    
+                    def on_token(token):
+                        st.session_state.streaming_response += token
+                        message_placeholder.write(st.session_state.streaming_response)
+                    
+                    full_response = st.session_state.chain["invoke"](
+                        {
+                            "input": user_input,
+                            "sample_qna": st.session_state.current_profile["sample_qna"]
+                        },
+                        streaming_callback=on_token
+                    )
+                    
+                    st.session_state.chat_history.append(("Assistant", full_response))
+        else:
+            st.sidebar.button("Back to Chat", on_click=toggle_edit_mode)
+            
+            st.header("Edit Character")
+            profile_name = st.text_input(
+                "Profile Name", 
+                value=st.session_state.current_profile["name"]
             )
             
-            # Add the complete response to chat history
-            st.session_state.chat_history.append(("Assistant", full_response))
+            system_prompt = st.text_area(
+                "System Instructions", 
+                value=st.session_state.current_profile["system_prompt"]
+            )
+
+            st.subheader("Sample Q&A Pairs")
+            
+            current_qna = st.session_state.current_profile["sample_qna"]
+            num_pairs = st.number_input("Number of Q&A Pairs", min_value=1, value=len(current_qna))
+            
+            sample_qna = []
+            for i in range(num_pairs):
+                col1, col2 = st.columns(2)
+                with col1:
+                    question = st.text_input(
+                        f"Question {i+1}", 
+                        value=current_qna[i]["question"] if i < len(current_qna) else ""
+                    )
+                with col2:
+                    answer = st.text_input(
+                        f"Expected Answer {i+1}", 
+                        value=current_qna[i]["answer"] if i < len(current_qna) else ""
+                    )
+                if question and answer:
+                    sample_qna.append({"question": question, "answer": answer})
+
+            if st.button("Save Profile") and profile_name and system_prompt and sample_qna:
+                save_profile(profile_name, system_prompt, sample_qna, PROFILES_FILE)
+                st.session_state.profiles = load_profiles(PROFILES_FILE)
+                
+                # Update current profile and chain
+                st.session_state.current_profile = next(
+                    (p for p in st.session_state.profiles if p["name"] == profile_name), 
+                    None
+                )
+                
+                if st.session_state.current_profile:
+                    st.session_state.chain = create_conversation_chain(
+                        st.session_state.llm,
+                        st.session_state.current_profile["system_prompt"]
+                    )
+                
+                st.session_state.new_profile = False
+                st.session_state.edit_mode = False
+                st.success(f"Profile '{profile_name}' saved successfully!")
+                st.experimental_rerun()
 
 if __name__ == "__main__":
     main() 
