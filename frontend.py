@@ -42,7 +42,7 @@ def main():
             profile["system_prompt"]
         )
 
-    st.header("Alter Model Properties")
+    st.header("Alter Characters:-")
     profile_name = st.text_input("Profile Name", value=st.session_state.current_profile["name"] if st.session_state.current_profile else "")
     system_prompt = st.text_area("System Instructions", value=st.session_state.current_profile["system_prompt"] if st.session_state.current_profile else "")
 
@@ -81,8 +81,11 @@ def main():
 
     st.subheader("Interactive Chat")
     user_input = st.text_input("Your message")
-    if user_input:
-        response = st.session_state.chain["invoke"]({"input": user_input})
+    if user_input and st.session_state.current_profile:
+        response = st.session_state.chain["invoke"]({
+            "input": user_input,
+            "sample_qna": st.session_state.current_profile["sample_qna"]
+        })
         st.session_state.chat_history.append(("You", user_input))
         st.session_state.chat_history.append(("Assistant", response))
 

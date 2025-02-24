@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.memory import ConversationBufferMemory
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 load_dotenv()
 
@@ -16,12 +17,20 @@ def init_llm():
     return ChatGoogleGenerativeAI(
         google_api_key=api_key,
         model="gemini-2.0-flash",
-        temperature=0.7,
+        temperature=0,
+        safety_settings={
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_ONLY_HIGH
+        }
     )
 
 def create_conversation_chain(llm, system_prompt: str):
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
+        ("system", "Here are some example interactions to guide your responses. Please maintain a similar tone and style in your answers:"),
+        MessagesPlaceholder(variable_name="examples"),
         MessagesPlaceholder(variable_name="history"),
         ("human", "{input}")
     ])
@@ -32,8 +41,16 @@ def create_conversation_chain(llm, system_prompt: str):
     )
     
     def chain_invoke(input_dict):
+        examples = []
+        if "sample_qna" in input_dict:
+            for qa in input_dict["sample_qna"]:
+                examples.extend([
+                    ("human", qa["question"]),
+                    ("assistant", qa["answer"])
+                ])
+        
         history = memory.load_memory_variables({})["history"]
-        messages = prompt.format_messages(history=history, input=input_dict["input"])
+        messages = prompt.format_messages(examples=examples, history=history, input=input_dict["input"])
         response = llm.invoke(messages)
         result = response.content
         memory.save_context({"input": input_dict["input"]}, {"output": result})
