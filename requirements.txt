@@ -1,9 +1,7 @@
-langchain
-langchain-community
-langchain-core
-langchain-google-genai
 streamlit
-google-generativeai
+flask
 python-dotenv
-typing-inspect
-typing_extensions
+langchain
+langchain-google-genai
+google-generativeai
+requests

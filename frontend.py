@@ -6,8 +6,19 @@ from langchain_app import (
     save_profile,
     load_profiles,
 )
+import multiprocessing
+import os
+from flask_server import app as flask_app
 
 PROFILES_FILE = "profiles.json"
+
+def run_flask():
+    flask_app.run(host='localhost', port=int(os.environ.get('PORT', 5000)))
+
+def start_flask_server():
+    flask_process = multiprocessing.Process(target=run_flask)
+    flask_process.start()
+    st.session_state.flask_process = flask_process
 
 def init_session_state():
     if "profiles" not in st.session_state:
@@ -47,7 +58,20 @@ def get_profiles_data():
     with open(PROFILES_FILE, "r") as f:
         return f.read()
 
+def display_api_endpoints():
+    st.sidebar.markdown("### API Endpoints")
+    st.sidebar.code("""
+GET  /characters
+POST /chat/<name>
+POST /reset/<name>
+""", language="text")
+
 def main():
+    
+    # if os.environ.get('STREAMLIT_SHARING_MODE') == 'streamlit':
+    start_flask_server()
+    st.sidebar.success('API Server is running!')
+        
     st.title("Enigma x GDU Apoorv Game")
     init_session_state()
 
@@ -57,6 +81,10 @@ def main():
         file_name=PROFILES_FILE,
         mime="application/json"
     )
+    
+    display_api_endpoints()
+    st.sidebar.markdown("---")
+
     st.sidebar.header("Character Selection")
     profile_names = [p["name"] for p in st.session_state.profiles]
     
