@@ -13,7 +13,7 @@ from flask_server import app as flask_app
 PROFILES_FILE = "profiles.json"
 
 def run_flask():
-    flask_app.run(host='localhost', port=int(os.environ.get('PORT', 5000)))
+    flask_app.run(host='localhost', port=int(os.environ.get('PORT', 6969)))
 
 def start_flask_server():
     flask_process = multiprocessing.Process(target=run_flask)
